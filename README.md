@@ -4,7 +4,7 @@ Simple Translate 已从 Chrome 插件改造为 VS Code 插件。它保留原插�
 
 ## 安装
 
-从 GitHub Release 下载 `simple-translate-vscode-1.0.0.vsix` 后安装：
+从 GitHub Release 下载 [`simple-translate-vscode-1.0.0.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.0/simple-translate-vscode-1.0.0.vsix) 后安装：
 
 ```powershell
 code --install-extension simple-translate-vscode-1.0.0.vsix
