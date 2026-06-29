@@ -1,0 +1,11 @@
+.vite/**
+assets/**
+src/options/**
+src/popup/**
+manifest.json
+service-worker-loader.js
+.vscode/**
+.gitignore
+*.vsix
+package-lock.json
+node_modules/**

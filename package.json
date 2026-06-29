@@ -1,0 +1,302 @@
+{
+  "name": "simple-translate-vscode",
+  "displayName": "Simple Translate",
+  "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
+  "version": "1.0.0",
+  "publisher": "local",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sunk011/simple-translate-vscode.git"
+  },
+  "homepage": "https://github.com/Sunk011/simple-translate-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/Sunk011/simple-translate-vscode/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "icon": "icons/icon-128.png",
+  "main": "./src/extension.js",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:simpleTranslate.translateSelection",
+    "onCommand:simpleTranslate.translateAndReplace",
+    "onCommand:simpleTranslate.translateInput",
+    "onCommand:simpleTranslate.clearTranslation",
+    "onCommand:simpleTranslate.copyTranslation",
+    "onCommand:simpleTranslate.toggle",
+    "onCommand:simpleTranslate.selectProvider",
+    "onCommand:simpleTranslate.setApiKey",
+    "onCommand:simpleTranslate.testProvider",
+    "onCommand:simpleTranslate.openSettings"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "simpleTranslate.translateSelection",
+        "title": "翻译选中文本",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.translateAndReplace",
+        "title": "翻译并替换选中文本",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.translateInput",
+        "title": "输入文本翻译",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.copyTranslation",
+        "title": "复制最近译文",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.clearTranslation",
+        "title": "清除翻译显示",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.toggle",
+        "title": "开启/关闭划词翻译",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.selectProvider",
+        "title": "选择翻译引擎",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.setApiKey",
+        "title": "设置当前引擎 API Key",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.testProvider",
+        "title": "测试翻译引擎",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.openSettings",
+        "title": "打开设置",
+        "category": "Simple Translate"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "simpleTranslate.translateSelection",
+        "key": "alt+t",
+        "mac": "alt+t",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "simpleTranslate.translateSelection",
+          "when": "editorHasSelection",
+          "group": "navigation@9"
+        },
+        {
+          "command": "simpleTranslate.translateAndReplace",
+          "when": "editorHasSelection",
+          "group": "1_modification@99"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Simple Translate",
+      "properties": {
+        "simpleTranslate.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用划词翻译。"
+        },
+        "simpleTranslate.provider": {
+          "type": "string",
+          "default": "bing",
+          "enum": [
+            "google-free",
+            "bing",
+            "deepl-free",
+            "deepl",
+            "ai",
+            "google"
+          ],
+          "enumDescriptions": [
+            "Google 免费翻译接口。",
+            "Bing / Microsoft 翻译接口。",
+            "DeepL 网页免费接口。",
+            "DeepL 官方 API，需要 API Key。",
+            "OpenAI 兼容 Chat Completions 接口，需要 API Key。",
+            "Google Cloud Translation API，需要 API Key。"
+          ],
+          "description": "翻译引擎。"
+        },
+        "simpleTranslate.triggerMode": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "manual",
+            "icon",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "仅通过右键菜单、命令面板或 Alt+T 翻译。",
+            "选中文本后在状态栏显示翻译按钮，点击后翻译。",
+            "选中文本后自动翻译。"
+          ],
+          "description": "选区触发方式。右键菜单和 Alt+T 始终可用。"
+        },
+        "simpleTranslate.displayMode": {
+          "type": "string",
+          "default": "inline",
+          "enum": [
+            "inline",
+            "notification",
+            "both",
+            "statusBar"
+          ],
+          "enumDescriptions": [
+            "在选区末尾以内联装饰显示译文。",
+            "用 VS Code 通知显示译文。",
+            "同时显示内联装饰和通知。",
+            "仅在状态栏显示译文。"
+          ],
+          "description": "译文显示方式。"
+        },
+        "simpleTranslate.primaryLangA": {
+          "type": "string",
+          "default": "zh",
+          "enum": [
+            "zh",
+            "en",
+            "ja",
+            "ko",
+            "fr",
+            "de",
+            "es",
+            "pt",
+            "ru",
+            "ar",
+            "it",
+            "th",
+            "vi"
+          ],
+          "description": "主要语言 A。划词翻译会自动在 A/B 之间互译。"
+        },
+        "simpleTranslate.primaryLangB": {
+          "type": "string",
+          "default": "en",
+          "enum": [
+            "zh",
+            "en",
+            "ja",
+            "ko",
+            "fr",
+            "de",
+            "es",
+            "pt",
+            "ru",
+            "ar",
+            "it",
+            "th",
+            "vi"
+          ],
+          "description": "主要语言 B。划词翻译会自动在 A/B 之间互译。"
+        },
+        "simpleTranslate.apiKeys": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "兼容旧配置的 API Key 映射，例如 {\"ai\":\"sk-...\",\"deepl\":\"...\",\"google\":\"...\"}。推荐使用命令“Simple Translate: 设置当前引擎 API Key”保存到 VS Code SecretStorage。"
+        },
+        "simpleTranslate.aiBaseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com",
+          "description": "AI 翻译的 OpenAI 兼容 Base URL。"
+        },
+        "simpleTranslate.aiModel": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "AI 翻译模型名称。"
+        },
+        "simpleTranslate.fontSize": {
+          "type": "number",
+          "default": 15,
+          "minimum": 10,
+          "maximum": 28,
+          "description": "内联译文字号。"
+        },
+        "simpleTranslate.opacity": {
+          "type": "number",
+          "default": 85,
+          "minimum": 20,
+          "maximum": 100,
+          "description": "内联译文透明度百分比。"
+        },
+        "simpleTranslate.chineseRatioThreshold": {
+          "type": "number",
+          "default": 0.3,
+          "minimum": 0.1,
+          "maximum": 0.9,
+          "description": "CJK 字符占比超过该阈值时判定为中文。"
+        },
+        "simpleTranslate.minChars": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "触发划词翻译的最短字符数。"
+        },
+        "simpleTranslate.maxChars": {
+          "type": "number",
+          "default": 500,
+          "minimum": 50,
+          "maximum": 5000,
+          "description": "触发划词翻译的最长字符数。"
+        },
+        "simpleTranslate.debounceMs": {
+          "type": "number",
+          "default": 150,
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "选区变化后的翻译防抖延迟。"
+        },
+        "simpleTranslate.blacklistDomains": {
+          "type": "string",
+          "default": "",
+          "description": "黑名单关键词，逗号分隔。VS Code 版会匹配文件 URI 或路径，例如 node_modules, dist。"
+        },
+        "simpleTranslate.enableCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否缓存本次 VS Code 会话中的翻译结果。"
+        },
+        "simpleTranslate.maxCacheEntries": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "会话翻译缓存条数上限。"
+        }
+      }
+    }
+  }
+}

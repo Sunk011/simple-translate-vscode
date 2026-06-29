@@ -1,0 +1,73 @@
+{
+  "../../../../../@crx/manifest": {
+    "file": "assets/crx-manifest.js-CI5th_El.js",
+    "name": "crx-manifest.js",
+    "src": "../../../../../@crx/manifest",
+    "isEntry": true
+  },
+  "_constants-B-XnnSlF.js": {
+    "file": "assets/constants-B-XnnSlF.js",
+    "name": "constants"
+  },
+  "_hooks.module-DFOVRWzK.js": {
+    "file": "assets/hooks.module-DFOVRWzK.js",
+    "name": "hooks.module"
+  },
+  "_languageDetector-CxMWe0Z6.js": {
+    "file": "assets/languageDetector-CxMWe0Z6.js",
+    "name": "languageDetector",
+    "imports": [
+      "_constants-B-XnnSlF.js"
+    ]
+  },
+  "index.ts-loader.js": {
+    "file": "assets/index.ts-loader-CeTfkjJs.js",
+    "src": "index.ts-loader.js"
+  },
+  "src/background/index.ts": {
+    "file": "assets/index.ts-OcuY5ze0.js",
+    "name": "index.ts",
+    "src": "src/background/index.ts",
+    "isEntry": true,
+    "imports": [
+      "_constants-B-XnnSlF.js"
+    ]
+  },
+  "src/content/index.ts": {
+    "file": "assets/index.ts-BDk-UUwi.js",
+    "name": "index.ts",
+    "src": "src/content/index.ts",
+    "isEntry": true,
+    "imports": [
+      "_languageDetector-CxMWe0Z6.js",
+      "_constants-B-XnnSlF.js"
+    ]
+  },
+  "src/options/index.html": {
+    "file": "assets/index.html-BlTMrSiO.js",
+    "name": "index.html",
+    "src": "src/options/index.html",
+    "isEntry": true,
+    "imports": [
+      "_hooks.module-DFOVRWzK.js",
+      "_constants-B-XnnSlF.js"
+    ],
+    "css": [
+      "assets/index-Di9w9UTq.css"
+    ]
+  },
+  "src/popup/index.html": {
+    "file": "assets/index.html-DWbzlVy6.js",
+    "name": "index.html",
+    "src": "src/popup/index.html",
+    "isEntry": true,
+    "imports": [
+      "_hooks.module-DFOVRWzK.js",
+      "_constants-B-XnnSlF.js",
+      "_languageDetector-CxMWe0Z6.js"
+    ],
+    "css": [
+      "assets/index-FKdN0nXA.css"
+    ]
+  }
+}
