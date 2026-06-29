@@ -4,10 +4,10 @@ Simple Translate 已从 Chrome 插件改造为 VS Code 插件。它保留原插�
 
 ## 安装
 
-从 GitHub Release 下载 [`simple-translate-vscode-1.0.0.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.0/simple-translate-vscode-1.0.0.vsix) 后安装：
+从 GitHub Release 下载 [`simple-translate-vscode-1.0.1.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.1/simple-translate-vscode-1.0.1.vsix) 后安装：
 
 ```powershell
-code --install-extension simple-translate-vscode-1.0.0.vsix
+code --install-extension simple-translate-vscode-1.0.1.vsix
 ```
 
 也可以在 VS Code 扩展面板右上角选择 `Install from VSIX...`，然后选择下载的 `.vsix` 文件。
@@ -15,7 +15,7 @@ code --install-extension simple-translate-vscode-1.0.0.vsix
 ## 功能
 
 - 启动后自动激活，默认 `auto` 模式下选中文本即翻译。
-- `Alt+T` 翻译当前选区。
+- 支持用户自定义翻译快捷键，不再固定绑定 `Alt+T`。
 - 编辑器右键菜单支持“翻译选中文本”和“翻译并替换选中文本”。
 - 支持 Google 免费、Bing、DeepL 免费、DeepL API、OpenAI 兼容 AI 翻译、Google Cloud Translation。
 - 自动在主要语言 A/B 之间互译，默认中文/英文。
@@ -28,7 +28,7 @@ code --install-extension simple-translate-vscode-1.0.0.vsix
 2. 按 `F5` 启动 Extension Development Host。
 3. 在新窗口中打开任意文本文件。
 4. 用鼠标选中文本，默认会直接翻译并在选区末尾显示译文。
-5. 也可以按 `Alt+T`，或在选区上右键选择 `Simple Translate` 命令。
+5. 也可以在选区上右键选择 `Simple Translate` 命令，或运行 `Simple Translate: 配置翻译快捷键` 绑定自己的快捷键。
 
 ## 常用命令
 
@@ -38,8 +38,35 @@ code --install-extension simple-translate-vscode-1.0.0.vsix
 - `Simple Translate: 选择翻译引擎`
 - `Simple Translate: 设置当前引擎 API Key`
 - `Simple Translate: 测试翻译引擎`
+- `Simple Translate: 配置翻译快捷键`
 - `Simple Translate: 开启/关闭划词翻译`
 - `Simple Translate: 清除翻译显示`
+
+## 快捷键自定义
+
+本扩展不再固定占用 `Alt+T`。你可以运行命令：
+
+```text
+Simple Translate: 配置翻译快捷键
+```
+
+然后在 VS Code 的快捷键编辑器里为以下命令绑定任意按键：
+
+- `simpleTranslate.translateSelection`: 翻译选中文本。
+- `simpleTranslate.translateAndReplace`: 翻译并替换选中文本。
+- `simpleTranslate.translateInput`: 输入文本翻译。
+
+也可以直接编辑 VS Code 的 `keybindings.json`，例如：
+
+```json
+[
+  {
+    "key": "ctrl+alt+t",
+    "command": "simpleTranslate.translateSelection",
+    "when": "editorTextFocus && editorHasSelection"
+  }
+]
+```
 
 ## 关键设置
 
@@ -62,7 +89,7 @@ code --install-extension simple-translate-vscode-1.0.0.vsix
 
 - `auto`: 选中文本后自动翻译。
 - `icon`: 选中文本后在状态栏显示“翻译选区”按钮。
-- `manual`: 仅通过右键菜单、命令面板或 `Alt+T` 翻译。
+- `manual`: 仅通过右键菜单、命令面板或用户自定义快捷键翻译。
 
 `displayMode` 支持：
 
@@ -97,6 +124,6 @@ Chrome 版可以向网页注入字幕浮层；VS Code 扩展不能任意覆盖�
 
 ## 原仓库来源
 
-本项目基于 `Simple Translate` Chrome 插件包改造为 VS Code 插件。当前工作目录中保留了原 Chrome 插件的构建产物与清单文件，包括 `manifest.json`、`service-worker-loader.js`、`assets/`、`src/popup/` 和 `src/options/`。
+本项目基于上游 Chrome 插件 [`rankangkang/simple-translate-extension`](https://github.com/rankangkang/simple-translate-extension) 改造为 VS Code 插件。当前工作目录中保留了原 Chrome 插件包的构建产物与清单文件，包括 `manifest.json`、`service-worker-loader.js`、`assets/`、`src/popup/` 和 `src/options/`。
 
-原始插件包未随附 Git 远程地址、`repository` 字段或可识别的上游 GitHub URL，因此这里按本地来源标注为：`simple-translate-v0.1.0` Chrome 插件包。
+本地改造所用插件包目录为：`simple-translate-v0.1.0`。

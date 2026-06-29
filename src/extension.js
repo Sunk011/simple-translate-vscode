@@ -207,6 +207,7 @@ function activate(context) {
     vscode.commands.registerCommand("simpleTranslate.selectProvider", selectProvider),
     vscode.commands.registerCommand("simpleTranslate.setApiKey", setApiKeyForCurrentProvider),
     vscode.commands.registerCommand("simpleTranslate.testProvider", testCurrentProvider),
+    vscode.commands.registerCommand("simpleTranslate.configureShortcut", configureShortcut),
     vscode.commands.registerCommand("simpleTranslate.openSettings", openSettings),
     vscode.window.onDidChangeTextEditorSelection(handleSelectionChange),
     vscode.window.onDidChangeActiveTextEditor((editor) => updateSelectionUi(editor)),
@@ -797,6 +798,47 @@ async function testCurrentProvider() {
   } catch (error) {
     await showErrorMessage(getErrorMessage(error));
   }
+}
+
+async function configureShortcut() {
+  const items = [
+    {
+      label: "翻译选中文本",
+      description: "simpleTranslate.translateSelection",
+      commandId: "simpleTranslate.translateSelection",
+      detail: "给划词翻译主命令绑定任意快捷键"
+    },
+    {
+      label: "翻译并替换选中文本",
+      description: "simpleTranslate.translateAndReplace",
+      commandId: "simpleTranslate.translateAndReplace",
+      detail: "给替换选区命令绑定快捷键"
+    },
+    {
+      label: "输入文本翻译",
+      description: "simpleTranslate.translateInput",
+      commandId: "simpleTranslate.translateInput",
+      detail: "给手动输入翻译命令绑定快捷键"
+    }
+  ];
+
+  const picked = await vscode.window.showQuickPick(items, {
+    title: "配置 Simple Translate 快捷键",
+    placeHolder: "选择要绑定快捷键的命令"
+  });
+
+  if (!picked) {
+    return;
+  }
+
+  await vscode.commands.executeCommand(
+    "workbench.action.openGlobalKeybindings",
+    `@command:${picked.commandId}`
+  );
+
+  vscode.window.showInformationMessage(
+    `已打开快捷键设置，请为“${picked.label}”绑定你想使用的按键。`
+  );
 }
 
 function openSettings() {

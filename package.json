@@ -2,7 +2,7 @@
   "name": "simple-translate-vscode",
   "displayName": "Simple Translate",
   "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "local",
   "license": "MIT",
   "repository": {
@@ -36,6 +36,7 @@
     "onCommand:simpleTranslate.selectProvider",
     "onCommand:simpleTranslate.setApiKey",
     "onCommand:simpleTranslate.testProvider",
+    "onCommand:simpleTranslate.configureShortcut",
     "onCommand:simpleTranslate.openSettings"
   ],
   "capabilities": {
@@ -91,17 +92,14 @@
         "category": "Simple Translate"
       },
       {
+        "command": "simpleTranslate.configureShortcut",
+        "title": "配置翻译快捷键",
+        "category": "Simple Translate"
+      },
+      {
         "command": "simpleTranslate.openSettings",
         "title": "打开设置",
         "category": "Simple Translate"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "simpleTranslate.translateSelection",
-        "key": "alt+t",
-        "mac": "alt+t",
-        "when": "editorTextFocus && editorHasSelection"
       }
     ],
     "menus": {
@@ -156,11 +154,11 @@
             "auto"
           ],
           "enumDescriptions": [
-            "仅通过右键菜单、命令面板或 Alt+T 翻译。",
+            "仅通过右键菜单、命令面板或用户自定义快捷键翻译。",
             "选中文本后在状态栏显示翻译按钮，点击后翻译。",
             "选中文本后自动翻译。"
           ],
-          "description": "选区触发方式。右键菜单和 Alt+T 始终可用。"
+          "description": "选区触发方式。右键菜单、命令面板和用户自定义快捷键始终可用。"
         },
         "simpleTranslate.displayMode": {
           "type": "string",
