@@ -97,6 +97,9 @@ const API_KEY_PROVIDERS = new Set(["deepl", "ai", "google"]);
 const REQUEST_LIMIT_WINDOW_MS = 60 * 1000;
 const REQUEST_LIMIT_COUNT = 20;
 const INPUT_TRANSLATION_MAX_CHARS = 5000;
+const MIN_INLINE_SEGMENT_WIDTH = 16;
+const INLINE_FIRST_PREFIX = "  => ";
+const INLINE_CONTINUATION_PREFIX = "     ";
 
 const SCRIPT_PATTERNS = [
   { script: "hangul", regex: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g },
@@ -241,6 +244,8 @@ function getConfig() {
     aiModel: config.get("aiModel", "gpt-4o-mini"),
     fontSize: clampNumber(config.get("fontSize", 15), 10, 28),
     opacity: clampNumber(config.get("opacity", 85), 20, 100),
+    inlineWrapColumn: clampNumber(config.get("inlineWrapColumn", 80), 40, 200),
+    inlineMaxLines: clampNumber(config.get("inlineMaxLines", 4), 1, 12),
     chineseRatioThreshold: clampNumber(config.get("chineseRatioThreshold", 0.3), 0.1, 0.9),
     minChars: clampNumber(config.get("minChars", 2), 1, 50),
     maxChars: clampNumber(config.get("maxChars", 500), 50, 5000),
@@ -558,17 +563,10 @@ function presentTranslation(editor, selectionInfo, result, options) {
 
   if (shouldUseInlineDisplay(config)) {
     const hover = buildHoverMarkdown(lastTranslation);
-    editor.setDecorations(resultDecorationType, [
-      {
-        range: selectionInfo.decorationRange,
-        hoverMessage: hover,
-        renderOptions: {
-          after: {
-            contentText: `  => ${truncateSingleLine(result.translatedText, 140)}`
-          }
-        }
-      }
-    ]);
+    editor.setDecorations(
+      resultDecorationType,
+      buildInlineTranslationDecorations(editor, selectionInfo, result.translatedText, config, hover)
+    );
   }
 
   showStatusBarResult(result);
@@ -584,16 +582,12 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
   clearEditorDecorations(editor);
 
   if (shouldUseInlineDisplay(config)) {
-    editor.setDecorations(resultDecorationType, [
-      {
-        range: selectionInfo.decorationRange,
-        renderOptions: {
-          after: {
-            contentText: `  => ${truncateSingleLine(message, 100)}`
-          }
-        }
-      }
-    ]);
+    editor.setDecorations(
+      resultDecorationType,
+      buildInlineTranslationDecorations(editor, selectionInfo, message, config, undefined, {
+        maxLines: Math.min(2, config.inlineMaxLines)
+      })
+    );
   }
 
   resultStatusBar.text = "$(error) Simple Translate: 翻译失败";
@@ -625,6 +619,160 @@ function clearEditorDecorations(editor) {
 
 function shouldUseInlineDisplay(config) {
   return config.displayMode === "inline" || config.displayMode === "both";
+}
+
+function buildInlineTranslationDecorations(editor, selectionInfo, text, config, hoverMessage, options = {}) {
+  const source = normalizeInlineText(text);
+  if (!source) {
+    return [];
+  }
+
+  const maxLines = Math.max(1, Math.min(options.maxLines || config.inlineMaxLines, config.inlineMaxLines));
+  const decorations = [];
+  let rest = source;
+  let line = selectionInfo.selection.end.line;
+  let renderedLines = 0;
+
+  while (rest && line < editor.document.lineCount && renderedLines < maxLines) {
+    const isFirstLine = renderedLines === 0;
+    const prefix = isFirstLine ? INLINE_FIRST_PREFIX : INLINE_CONTINUATION_PREFIX;
+    const lineText = editor.document.lineAt(line).text;
+    const anchorCharacter = isFirstLine ? selectionInfo.selection.end.character : lineText.length;
+    const anchorText = lineText.slice(0, anchorCharacter);
+    const usedWidth = estimateDisplayWidth(anchorText) + estimateDisplayWidth(prefix);
+    const availableWidth = Math.max(
+      MIN_INLINE_SEGMENT_WIDTH,
+      Math.min(config.inlineWrapColumn - estimateDisplayWidth(prefix), config.inlineWrapColumn - usedWidth)
+    );
+    const isLastRenderableLine =
+      renderedLines === maxLines - 1 || line === editor.document.lineCount - 1;
+    const part = takeInlineSegment(rest, availableWidth, isLastRenderableLine);
+
+    decorations.push({
+      range: new vscode.Range(line, anchorCharacter, line, anchorCharacter),
+      hoverMessage,
+      renderOptions: {
+        after: {
+          contentText: `${prefix}${part.segment}`
+        }
+      }
+    });
+
+    rest = part.rest;
+    line += 1;
+    renderedLines += 1;
+  }
+
+  return decorations;
+}
+
+function normalizeInlineText(text) {
+  return String(text).replace(/\s+/g, " ").trim();
+}
+
+function takeInlineSegment(text, maxWidth, isLastSegment) {
+  if (estimateDisplayWidth(text) <= maxWidth) {
+    return { segment: text, rest: "" };
+  }
+
+  if (isLastSegment) {
+    return {
+      segment: trimToDisplayWidth(text, Math.max(1, maxWidth - 3)).trimEnd() + "...",
+      rest: ""
+    };
+  }
+
+  const breakIndex = findInlineBreakIndex(text, maxWidth);
+  const segment = text.slice(0, breakIndex).trimEnd();
+  const rest = text.slice(breakIndex).trimStart();
+
+  if (segment) {
+    return { segment, rest };
+  }
+
+  const fallback = trimToDisplayWidth(text, maxWidth);
+  return {
+    segment: fallback,
+    rest: text.slice(fallback.length).trimStart()
+  };
+}
+
+function findInlineBreakIndex(text, maxWidth) {
+  let width = 0;
+  let index = 0;
+  let lastGoodBreak = -1;
+  const minBreakWidth = Math.max(1, Math.floor(maxWidth * 0.45));
+
+  for (const char of text) {
+    const nextIndex = index + char.length;
+    const nextWidth = width + getDisplayWidth(char);
+
+    if (isInlineBreakChar(char) && nextWidth >= minBreakWidth) {
+      lastGoodBreak = nextIndex;
+    }
+
+    if (nextWidth > maxWidth) {
+      if (lastGoodBreak > 0) {
+        return lastGoodBreak;
+      }
+      return index > 0 ? index : nextIndex;
+    }
+
+    width = nextWidth;
+    index = nextIndex;
+  }
+
+  return text.length;
+}
+
+function trimToDisplayWidth(text, maxWidth) {
+  let width = 0;
+  let result = "";
+
+  for (const char of text) {
+    const charWidth = getDisplayWidth(char);
+    if (width + charWidth > maxWidth) {
+      break;
+    }
+    result += char;
+    width += charWidth;
+  }
+
+  return result;
+}
+
+function estimateDisplayWidth(text) {
+  let width = 0;
+  for (const char of String(text)) {
+    width += getDisplayWidth(char);
+  }
+  return width;
+}
+
+function getDisplayWidth(char) {
+  if (char === "\t") {
+    return 4;
+  }
+
+  const codePoint = char.codePointAt(0) || 0;
+  if (
+    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6)
+  ) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function isInlineBreakChar(char) {
+  return /\s/.test(char) || /[,.!?;:，。！？；：、]/.test(char);
 }
 
 function showStatusBarResult(result) {

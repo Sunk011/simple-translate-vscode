@@ -4,10 +4,10 @@ Simple Translate 已从 Chrome 插件改造为 VS Code 插件。它保留原插�
 
 ## 安装
 
-从 GitHub Release 下载 [`simple-translate-vscode-1.0.1.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.1/simple-translate-vscode-1.0.1.vsix) 后安装：
+从 GitHub Release 下载 [`simple-translate-vscode-1.0.2.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.2/simple-translate-vscode-1.0.2.vsix) 后安装：
 
 ```powershell
-code --install-extension simple-translate-vscode-1.0.1.vsix
+code --install-extension simple-translate-vscode-1.0.2.vsix
 ```
 
 也可以在 VS Code 扩展面板右上角选择 `Install from VSIX...`，然后选择下载的 `.vsix` 文件。
@@ -19,7 +19,7 @@ code --install-extension simple-translate-vscode-1.0.1.vsix
 - 编辑器右键菜单支持“翻译选中文本”和“翻译并替换选中文本”。
 - 支持 Google 免费、Bing、DeepL 免费、DeepL API、OpenAI 兼容 AI 翻译、Google Cloud Translation。
 - 自动在主要语言 A/B 之间互译，默认中文/英文。
-- 译文可显示为编辑器内联装饰、通知、二者同时显示，或仅状态栏显示。
+- 译文可显示为编辑器内联装饰、通知、二者同时显示，或仅状态栏显示。内联译文会手动分段，避免在自动换行时横向冲出编辑器。
 - 付费/API 引擎的 API Key 可通过命令保存到 VS Code SecretStorage。
 
 ## 调试运行
@@ -90,6 +90,8 @@ chrome://extensions/shortcuts
   "simpleTranslate.primaryLangB": "en",
   "simpleTranslate.aiBaseUrl": "https://api.openai.com",
   "simpleTranslate.aiModel": "gpt-4o-mini",
+  "simpleTranslate.inlineWrapColumn": 80,
+  "simpleTranslate.inlineMaxLines": 4,
   "simpleTranslate.minChars": 2,
   "simpleTranslate.maxChars": 500
 }
@@ -107,6 +109,11 @@ chrome://extensions/shortcuts
 - `notification`: 用 VS Code 通知显示译文。
 - `both`: 同时使用内联和通知。
 - `statusBar`: 仅状态栏显示。
+
+内联译文说明：
+
+- VS Code 的装饰文本不会自动跟随编辑器 `wordWrap` 换行，因此扩展会根据 `simpleTranslate.inlineWrapColumn` 手动分段显示。
+- `simpleTranslate.inlineMaxLines` 控制内联最多显示几行，完整译文仍可通过 hover、状态栏 tooltip 或输出面板查看。
 
 ## API Key
 
