@@ -68,6 +68,16 @@ Simple Translate: 配置翻译快捷键
 ]
 ```
 
+### Chrome 插件版快捷键
+
+如果你安装的是上游 Chrome 插件版，快捷键由 Chrome 浏览器统一管理。打开：
+
+```text
+chrome://extensions/shortcuts
+```
+
+找到 `Simple Translate`，然后为“翻译选中文本”设置你想使用的快捷键即可。Chrome 版默认建议快捷键是 `Alt+T`，但可以在这个页面里替换成其他按键。
+
 ## 关键设置
 
 ```json
