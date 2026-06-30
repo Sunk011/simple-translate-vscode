@@ -162,6 +162,7 @@ let extensionContext;
 let outputChannel;
 let translateActionStatusBar;
 let resultStatusBar;
+let translationPanel;
 let resultDecorationType;
 let loadingDecorationType;
 let selectionDebounce;
@@ -211,6 +212,13 @@ function activate(context) {
     vscode.commands.registerCommand("simpleTranslate.testProvider", testCurrentProvider),
     vscode.commands.registerCommand("simpleTranslate.configureShortcut", configureShortcut),
     vscode.commands.registerCommand("simpleTranslate.openSettings", openSettings),
+    vscode.commands.registerCommand("simpleTranslate.showPanel", () => {
+      if (lastTranslation) {
+        showTranslationPanel(lastTranslation);
+      } else {
+        vscode.window.showInformationMessage("Simple Translate: 暂无可显示的译文。");
+      }
+    }),
     vscode.languages.registerHoverProvider(
       [{ scheme: "file" }, { scheme: "untitled" }, { scheme: "vscode-remote" }],
       {
@@ -244,6 +252,7 @@ function activate(context) {
 function deactivate() {
   clearSelectionDebounce();
   disposeDecorationTypes();
+  disposeTranslationPanel();
 }
 
 function getConfig() {
@@ -252,7 +261,7 @@ function getConfig() {
     enabled: config.get("enabled", true),
     provider: config.get("provider", "bing"),
     triggerMode: config.get("triggerMode", "auto"),
-    displayMode: config.get("displayMode", "hover"),
+    displayMode: config.get("displayMode", "panel"),
     shortcut: config.get("shortcut", "alt+t"),
     primaryLangA: config.get("primaryLangA", "zh"),
     primaryLangB: config.get("primaryLangB", "en"),
@@ -478,6 +487,9 @@ async function translateInputCommand() {
       providerName: result.providerName
     };
     appendOutput(lastTranslation);
+    if (config.displayMode === "panel") {
+      showTranslationPanel(lastTranslation);
+    }
     showStatusBarResult(result);
     await showTranslationMessage(result, null, null);
     return result;
@@ -539,6 +551,15 @@ function getSelectionKey(editor, selectionInfo) {
 function setLoadingDisplay(editor, selectionInfo, config) {
   clearEditorDecorations(editor);
 
+  if (shouldUsePanelDisplay(config)) {
+    showTranslationPanel({
+      sourceText: selectionInfo.text,
+      translatedText: "正在翻译...",
+      providerName: "Simple Translate",
+      loading: true
+    });
+  }
+
   if (shouldUseHoverDisplay(config)) {
     editor.setDecorations(loadingDecorationType, [
       {
@@ -567,6 +588,10 @@ function presentTranslation(editor, selectionInfo, result, options) {
 
   appendOutput(lastTranslation);
 
+  if (shouldUsePanelDisplay(config)) {
+    showTranslationPanel(lastTranslation);
+  }
+
   if (shouldUseHoverDisplay(config)) {
     const hover = buildHoverMarkdown(lastTranslation);
     lastHoverEntry = {
@@ -593,6 +618,15 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
   const config = getConfig();
   clearEditorDecorations(editor);
 
+  if (shouldUsePanelDisplay(config)) {
+    showTranslationPanel({
+      sourceText: selectionInfo.text,
+      translatedText: message,
+      providerName: "翻译失败",
+      error: true
+    });
+  }
+
   if (shouldUseHoverDisplay(config)) {
     const hover = buildErrorHoverMarkdown(message);
     lastHoverEntry = {
@@ -617,6 +651,7 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
 
 function clearTranslation() {
   lastHoverEntry = null;
+  disposeTranslationPanel();
   for (const editor of vscode.window.visibleTextEditors) {
     clearEditorDecorations(editor);
   }
@@ -637,6 +672,10 @@ function clearEditorDecorations(editor) {
 
 function shouldUseHoverDisplay(config) {
   return config.displayMode === "hover" || config.displayMode === "inline" || config.displayMode === "both";
+}
+
+function shouldUsePanelDisplay(config) {
+  return config.displayMode === "panel";
 }
 
 function buildHoverDecorations(selectionInfo) {
@@ -662,6 +701,368 @@ function showTranslationHover(editor, selectionInfo) {
       vscode.commands.executeCommand("editor.action.showHover");
     }
   }, 25);
+}
+
+function showTranslationPanel(translation) {
+  const message = {
+    type: "translation",
+    payload: {
+      sourceText: translation.sourceText || "",
+      translatedText: translation.translatedText || "",
+      providerName: translation.providerName || "Simple Translate",
+      loading: Boolean(translation.loading),
+      error: Boolean(translation.error)
+    }
+  };
+  let created = false;
+
+  if (!translationPanel) {
+    created = true;
+    translationPanel = vscode.window.createWebviewPanel(
+      "simpleTranslate.panel",
+      "Simple Translate",
+      vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true
+      }
+    );
+
+    translationPanel.webview.html = buildTranslationPanelHtml();
+    translationPanel.onDidDispose(() => {
+      translationPanel = undefined;
+    });
+    translationPanel.onDidChangeViewState((event) => {
+      if (event.webviewPanel.visible) {
+        postTranslationPanelState();
+      }
+    });
+    translationPanel.webview.onDidReceiveMessage((message) => {
+      if (!message || typeof message.type !== "string") {
+        return;
+      }
+
+      if (message.type === "copy") {
+        const text = typeof message.text === "string" ? message.text : "";
+        if (text) {
+          vscode.env.clipboard.writeText(text);
+          vscode.window.showInformationMessage("Simple Translate: 译文已复制。");
+        }
+      } else if (message.type === "close") {
+        disposeTranslationPanel();
+      }
+    });
+  } else {
+    translationPanel.reveal(vscode.ViewColumn.Beside, true);
+  }
+
+  if (created) {
+    setTimeout(() => {
+      translationPanel?.webview.postMessage(message);
+    }, 50);
+  } else {
+    translationPanel.webview.postMessage(message);
+  }
+}
+
+function postTranslationPanelState() {
+  if (!translationPanel || !lastTranslation) {
+    return;
+  }
+
+  translationPanel.webview.postMessage({
+    type: "translation",
+    payload: {
+      sourceText: lastTranslation.sourceText || "",
+      translatedText: lastTranslation.translatedText || "",
+      providerName: lastTranslation.providerName || "Simple Translate",
+      loading: false,
+      error: false
+    }
+  });
+}
+
+function disposeTranslationPanel() {
+  if (translationPanel) {
+    const panel = translationPanel;
+    translationPanel = undefined;
+    panel.dispose();
+  }
+}
+
+function buildTranslationPanelHtml() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Translate</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --panel-bg: var(--vscode-editor-background);
+      --card-bg: var(--vscode-editorWidget-background);
+      --card-border: var(--vscode-editorWidget-border);
+      --text: var(--vscode-editorWidget-foreground);
+      --muted: var(--vscode-descriptionForeground);
+      --accent: var(--vscode-textLink-foreground);
+      --danger: var(--vscode-errorForeground);
+      --button-bg: var(--vscode-button-secondaryBackground);
+      --button-fg: var(--vscode-button-secondaryForeground);
+      --button-hover: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--panel-bg);
+      color: var(--text);
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+
+    .stage {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .card {
+      position: absolute;
+      left: 24px;
+      top: 24px;
+      width: min(560px, calc(100vw - 48px));
+      max-height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+    }
+
+    .card.dragging {
+      user-select: none;
+      opacity: 0.96;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+      cursor: move;
+      min-height: 24px;
+    }
+
+    .grip {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 auto;
+      opacity: 0.65;
+      background-image: radial-gradient(currentColor 1px, transparent 1px);
+      background-size: 5px 5px;
+      color: var(--muted);
+    }
+
+    .title {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: 600;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    button {
+      border: 0;
+      border-radius: 5px;
+      padding: 4px 8px;
+      background: var(--button-bg);
+      color: var(--button-fg);
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button:hover {
+      background: var(--button-hover);
+    }
+
+    .body {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .label {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .source,
+    .result {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.55;
+    }
+
+    .source {
+      margin-bottom: 14px;
+      color: var(--muted);
+    }
+
+    .result {
+      font-size: calc(var(--vscode-font-size) + 1px);
+    }
+
+    .result.loading {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .result.error {
+      color: var(--danger);
+    }
+
+    .hint {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <section id="card" class="card" aria-label="Simple Translate">
+      <header id="dragHandle" class="header" title="拖动移动翻译框">
+        <span class="grip" aria-hidden="true"></span>
+        <div id="title" class="title">Simple Translate</div>
+        <div class="actions">
+          <button id="copyButton" type="button">复制</button>
+          <button id="closeButton" type="button">关闭</button>
+        </div>
+      </header>
+      <main class="body">
+        <p class="label">原文</p>
+        <div id="source" class="source"></div>
+        <p class="label">译文</p>
+        <div id="result" class="result"></div>
+        <div class="hint">拖动标题栏可移动翻译框。</div>
+      </main>
+    </section>
+  </div>
+  <script>
+    const vscode = acquireVsCodeApi();
+    const card = document.getElementById("card");
+    const dragHandle = document.getElementById("dragHandle");
+    const title = document.getElementById("title");
+    const source = document.getElementById("source");
+    const result = document.getElementById("result");
+    const copyButton = document.getElementById("copyButton");
+    const closeButton = document.getElementById("closeButton");
+    let translatedText = "";
+    let drag = null;
+
+    const state = vscode.getState() || {};
+    if (state.position) {
+      setCardPosition(state.position.left, state.position.top);
+    }
+
+    window.addEventListener("message", (event) => {
+      const message = event.data || {};
+      if (message.type !== "translation") {
+        return;
+      }
+
+      const payload = message.payload || {};
+      translatedText = payload.translatedText || "";
+      title.textContent = payload.loading
+        ? "Simple Translate · 正在翻译"
+        : "Simple Translate" + (payload.providerName ? " · " + payload.providerName : "");
+      source.textContent = payload.sourceText || "";
+      result.textContent = translatedText;
+      result.classList.toggle("loading", Boolean(payload.loading));
+      result.classList.toggle("error", Boolean(payload.error));
+    });
+
+    copyButton.addEventListener("click", () => {
+      vscode.postMessage({ type: "copy", text: translatedText });
+    });
+
+    closeButton.addEventListener("click", () => {
+      vscode.postMessage({ type: "close" });
+    });
+
+    dragHandle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const rect = card.getBoundingClientRect();
+      drag = {
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top
+      };
+      card.classList.add("dragging");
+      dragHandle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    dragHandle.addEventListener("pointermove", (event) => {
+      if (!drag) {
+        return;
+      }
+      setCardPosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+    });
+
+    function finishDrag(event) {
+      if (!drag) {
+        return;
+      }
+      drag = null;
+      card.classList.remove("dragging");
+      try {
+        dragHandle.releasePointerCapture(event.pointerId);
+      } catch {}
+      const rect = card.getBoundingClientRect();
+      vscode.setState({
+        ...vscode.getState(),
+        position: { left: rect.left, top: rect.top }
+      });
+    }
+
+    dragHandle.addEventListener("pointerup", finishDrag);
+    dragHandle.addEventListener("pointercancel", finishDrag);
+
+    window.addEventListener("resize", () => {
+      const rect = card.getBoundingClientRect();
+      setCardPosition(rect.left, rect.top);
+    });
+
+    function setCardPosition(left, top) {
+      const rect = card.getBoundingClientRect();
+      const maxLeft = Math.max(0, window.innerWidth - rect.width - 8);
+      const maxTop = Math.max(0, window.innerHeight - rect.height - 8);
+      const nextLeft = Math.min(Math.max(8, left), maxLeft);
+      const nextTop = Math.min(Math.max(8, top), maxTop);
+      card.style.left = nextLeft + "px";
+      card.style.top = nextTop + "px";
+    }
+  </script>
+</body>
+</html>`;
 }
 
 function showStatusBarResult(result) {

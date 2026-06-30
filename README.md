@@ -4,10 +4,10 @@ Simple Translate 已从 Chrome 插件改造为 VS Code 插件。它保留原插�
 
 ## 安装
 
-从 GitHub Release 下载 [`simple-translate-vscode-1.0.5.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.5/simple-translate-vscode-1.0.5.vsix) 后安装：
+从 GitHub Release 下载 [`simple-translate-vscode-1.0.6.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.6/simple-translate-vscode-1.0.6.vsix) 后安装：
 
 ```powershell
-code --install-extension simple-translate-vscode-1.0.5.vsix
+code --install-extension simple-translate-vscode-1.0.6.vsix
 ```
 
 也可以在 VS Code 扩展面板右上角选择 `Install from VSIX...`，然后选择下载的 `.vsix` 文件。
@@ -19,7 +19,7 @@ code --install-extension simple-translate-vscode-1.0.5.vsix
 - 编辑器右键菜单支持“翻译选中文本”和“翻译并替换选中文本”。
 - 支持 Google 免费、Bing、DeepL 免费、DeepL API、OpenAI 兼容 AI 翻译、Google Cloud Translation。
 - 自动在主要语言 A/B 之间互译，默认中文/英文。
-- 译文默认以 VS Code 悬浮提示显示，不会插入虚拟行或挤压代码布局；也可改为通知或仅状态栏显示。
+- 译文默认显示在可拖动的翻译面板中，不会插入虚拟行或挤压代码布局；也可改为 hover、通知或仅状态栏显示。
 - 付费/API 引擎的 API Key 可通过命令保存到 VS Code SecretStorage。
 
 ## 调试运行
@@ -39,6 +39,7 @@ code --install-extension simple-translate-vscode-1.0.5.vsix
 - `Simple Translate: 设置当前引擎 API Key`
 - `Simple Translate: 测试翻译引擎`
 - `Simple Translate: 配置翻译快捷键`
+- `Simple Translate: 显示翻译面板`
 - `Simple Translate: 开启/关闭划词翻译`
 - `Simple Translate: 清除翻译显示`
 
@@ -87,7 +88,7 @@ chrome://extensions/shortcuts
   "simpleTranslate.enabled": true,
   "simpleTranslate.provider": "bing",
   "simpleTranslate.triggerMode": "auto",
-  "simpleTranslate.displayMode": "hover",
+  "simpleTranslate.displayMode": "panel",
   "simpleTranslate.primaryLangA": "zh",
   "simpleTranslate.primaryLangB": "en",
   "simpleTranslate.aiBaseUrl": "https://api.openai.com",
@@ -106,15 +107,23 @@ chrome://extensions/shortcuts
 
 `displayMode` 支持：
 
+- `panel`: 显示可拖动的 Webview 翻译面板。
 - `hover`: 以 VS Code 悬浮提示显示译文，不影响代码布局。
 - `inline`: 兼容旧配置，实际使用悬浮提示显示译文。
 - `notification`: 用 VS Code 通知显示译文。
 - `both`: 同时使用悬浮提示和通知。
 - `statusBar`: 仅状态栏显示。
 
+翻译面板说明：
+
+- 默认 `panel` 模式会打开 `Simple Translate` Webview 面板。
+- 面板里的翻译卡片可以拖动，位置会在该面板内保持。
+- 你也可以拖动 VS Code 的面板标签页，把它放到右侧、底部或其他编辑器组。
+
 悬浮提示说明：
 
 - 自动划词翻译完成后，扩展会轻微高亮选区并自动打开 VS Code hover 弹窗显示译文。
+- VS Code 原生 hover 本身不支持扩展改成可拖动。如果需要拖动，请使用默认的 `panel` 模式。
 - 完整译文也会同步到状态栏 tooltip 和输出面板。
 
 ## API Key

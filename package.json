@@ -2,7 +2,7 @@
   "name": "simple-translate-vscode",
   "displayName": "Simple Translate",
   "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "publisher": "local",
   "license": "MIT",
   "repository": {
@@ -37,6 +37,7 @@
     "onCommand:simpleTranslate.setApiKey",
     "onCommand:simpleTranslate.testProvider",
     "onCommand:simpleTranslate.configureShortcut",
+    "onCommand:simpleTranslate.showPanel",
     "onCommand:simpleTranslate.openSettings"
   ],
   "capabilities": {
@@ -94,6 +95,11 @@
       {
         "command": "simpleTranslate.configureShortcut",
         "title": "配置翻译快捷键",
+        "category": "Simple Translate"
+      },
+      {
+        "command": "simpleTranslate.showPanel",
+        "title": "显示翻译面板",
         "category": "Simple Translate"
       },
       {
@@ -175,8 +181,9 @@
         },
         "simpleTranslate.displayMode": {
           "type": "string",
-          "default": "hover",
+          "default": "panel",
           "enum": [
+            "panel",
             "hover",
             "inline",
             "notification",
@@ -184,6 +191,7 @@
             "statusBar"
           ],
           "enumDescriptions": [
+            "显示可拖动的 Webview 翻译面板。",
             "以 VS Code 悬浮提示显示译文，不影响代码布局。",
             "兼容旧配置：使用悬浮提示显示译文。",
             "用 VS Code 通知显示译文。",
