@@ -2,7 +2,7 @@
   "name": "simple-translate-vscode",
   "displayName": "Simple Translate",
   "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "local",
   "license": "MIT",
   "repository": {
@@ -175,17 +175,19 @@
         },
         "simpleTranslate.displayMode": {
           "type": "string",
-          "default": "inline",
+          "default": "hover",
           "enum": [
+            "hover",
             "inline",
             "notification",
             "both",
             "statusBar"
           ],
           "enumDescriptions": [
-            "在选区末尾以内联装饰显示译文。",
+            "以 VS Code 悬浮提示显示译文，不影响代码布局。",
+            "兼容旧配置：使用悬浮提示显示译文。",
             "用 VS Code 通知显示译文。",
-            "同时显示内联装饰和通知。",
+            "同时显示悬浮提示和通知。",
             "仅在状态栏显示译文。"
           ],
           "description": "译文显示方式。"
@@ -248,33 +250,12 @@
           "default": "gpt-4o-mini",
           "description": "AI 翻译模型名称。"
         },
-        "simpleTranslate.fontSize": {
-          "type": "number",
-          "default": 15,
-          "minimum": 10,
-          "maximum": 28,
-          "description": "内联译文字号。"
-        },
         "simpleTranslate.opacity": {
           "type": "number",
           "default": 85,
           "minimum": 20,
           "maximum": 100,
-          "description": "内联译文透明度百分比。"
-        },
-        "simpleTranslate.inlineWrapColumn": {
-          "type": "number",
-          "default": 56,
-          "minimum": 24,
-          "maximum": 160,
-          "description": "内联译文块的最大宽度，单位近似为字符宽度。"
-        },
-        "simpleTranslate.inlineMaxLines": {
-          "type": "number",
-          "default": 4,
-          "minimum": 1,
-          "maximum": 12,
-          "description": "内联译文最多显示的行数。完整译文仍可在 hover、状态栏 tooltip 和输出中查看。"
+          "description": "选区高亮透明度百分比。"
         },
         "simpleTranslate.chineseRatioThreshold": {
           "type": "number",

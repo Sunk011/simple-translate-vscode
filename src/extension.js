@@ -97,8 +97,6 @@ const API_KEY_PROVIDERS = new Set(["deepl", "ai", "google"]);
 const REQUEST_LIMIT_WINDOW_MS = 60 * 1000;
 const REQUEST_LIMIT_COUNT = 20;
 const INPUT_TRANSLATION_MAX_CHARS = 5000;
-const INLINE_PREFIX = "=> ";
-
 const SCRIPT_PATTERNS = [
   { script: "hangul", regex: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g },
   { script: "kana", regex: /[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF]/g },
@@ -171,6 +169,7 @@ let requestSerial = 0;
 let lastSelectionKey = "";
 let lastTranslation = null;
 let lastShortcutSetting = "alt+t";
+let lastHoverEntry = null;
 let bingAuthToken = null;
 let bingAuthExpiresAt = 0;
 let deeplRequestId = Math.floor(Math.random() * 99999) + 10000;
@@ -212,6 +211,20 @@ function activate(context) {
     vscode.commands.registerCommand("simpleTranslate.testProvider", testCurrentProvider),
     vscode.commands.registerCommand("simpleTranslate.configureShortcut", configureShortcut),
     vscode.commands.registerCommand("simpleTranslate.openSettings", openSettings),
+    vscode.languages.registerHoverProvider(
+      [{ scheme: "file" }, { scheme: "untitled" }, { scheme: "vscode-remote" }],
+      {
+        provideHover(document, position) {
+          if (!lastHoverEntry || lastHoverEntry.documentUri !== document.uri.toString()) {
+            return undefined;
+          }
+          if (!lastHoverEntry.range.contains(position)) {
+            return undefined;
+          }
+          return new vscode.Hover(lastHoverEntry.markdown, lastHoverEntry.range);
+        }
+      }
+    ),
     vscode.window.onDidChangeTextEditorSelection(handleSelectionChange),
     vscode.window.onDidChangeActiveTextEditor((editor) => updateSelectionUi(editor)),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -239,17 +252,14 @@ function getConfig() {
     enabled: config.get("enabled", true),
     provider: config.get("provider", "bing"),
     triggerMode: config.get("triggerMode", "auto"),
-    displayMode: config.get("displayMode", "inline"),
+    displayMode: config.get("displayMode", "hover"),
     shortcut: config.get("shortcut", "alt+t"),
     primaryLangA: config.get("primaryLangA", "zh"),
     primaryLangB: config.get("primaryLangB", "en"),
     apiKeys: config.get("apiKeys", {}),
     aiBaseUrl: config.get("aiBaseUrl", "https://api.openai.com"),
     aiModel: config.get("aiModel", "gpt-4o-mini"),
-    fontSize: clampNumber(config.get("fontSize", 15), 10, 28),
     opacity: clampNumber(config.get("opacity", 85), 20, 100),
-    inlineWrapColumn: clampNumber(config.get("inlineWrapColumn", 56), 24, 160),
-    inlineMaxLines: clampNumber(config.get("inlineMaxLines", 4), 1, 12),
     chineseRatioThreshold: clampNumber(config.get("chineseRatioThreshold", 0.3), 0.1, 0.9),
     minChars: clampNumber(config.get("minChars", 2), 1, 50),
     maxChars: clampNumber(config.get("maxChars", 500), 50, 5000),
@@ -264,45 +274,19 @@ function rebuildDecorationTypes() {
   disposeDecorationTypes();
   const config = getConfig();
   const opacity = config.opacity / 100;
-  const textDecoration = `none; font-size: ${config.fontSize}px; opacity: ${opacity};`;
-  const inlineBlockDecoration = [
-    "none",
-    "display: block",
-    "box-sizing: border-box",
-    `max-width: min(${config.inlineWrapColumn}ch, calc(100vw - 140px))`,
-    `max-height: ${Math.max(1, config.inlineMaxLines) * 1.45}em`,
-    "white-space: normal",
-    "overflow-wrap: anywhere",
-    "word-break: break-word",
-    "overflow: hidden",
-    "line-height: 1.45",
-    `font-size: ${config.fontSize}px`,
-    `opacity: ${opacity}`,
-    "margin: 2px 0"
-  ].join("; ");
 
   loadingDecorationType = vscode.window.createTextEditorDecorationType({
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-    after: {
-      margin: "0 0 0 1rem",
-      color: `rgba(148, 163, 184, ${opacity})`,
-      fontStyle: "italic",
-      textDecoration
-    }
+    backgroundColor: `rgba(148, 163, 184, ${Math.min(opacity, 0.18)})`,
+    border: `1px solid rgba(148, 163, 184, ${Math.min(opacity, 0.28)})`,
+    borderRadius: "3px"
   });
 
   resultDecorationType = vscode.window.createTextEditorDecorationType({
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-    before: {
-      color: `rgba(80, 160, 255, ${opacity})`,
-      fontWeight: "600",
-      textDecoration: inlineBlockDecoration
-    },
-    after: {
-      color: `rgba(80, 160, 255, ${opacity})`,
-      fontWeight: "600",
-      textDecoration: inlineBlockDecoration
-    }
+    backgroundColor: `rgba(80, 160, 255, ${Math.min(opacity, 0.16)})`,
+    border: `1px solid rgba(80, 160, 255, ${Math.min(opacity, 0.36)})`,
+    borderRadius: "3px"
   });
 }
 
@@ -330,7 +314,9 @@ function handleSelectionChange(event) {
   const selectionInfo = getSelectionInfo(editor, config, { enforceLength: true });
   if (!selectionInfo) {
     clearSelectionDebounce();
+    requestSerial += 1;
     lastSelectionKey = "";
+    lastHoverEntry = null;
     clearEditorDecorations(editor);
     return;
   }
@@ -373,6 +359,7 @@ function updateSelectionUi(editor) {
   }
 
   if (!selectionInfo && config.triggerMode !== "icon") {
+    lastHoverEntry = null;
     clearEditorDecorations(editor);
   }
 }
@@ -552,15 +539,11 @@ function getSelectionKey(editor, selectionInfo) {
 function setLoadingDisplay(editor, selectionInfo, config) {
   clearEditorDecorations(editor);
 
-  if (shouldUseInlineDisplay(config)) {
+  if (shouldUseHoverDisplay(config)) {
     editor.setDecorations(loadingDecorationType, [
       {
-        range: selectionInfo.decorationRange,
-        renderOptions: {
-          after: {
-            contentText: "  => 正在翻译..."
-          }
-        }
+        range: selectionInfo.selection,
+        hoverMessage: "Simple Translate: 正在翻译..."
       }
     ]);
   }
@@ -584,12 +567,18 @@ function presentTranslation(editor, selectionInfo, result, options) {
 
   appendOutput(lastTranslation);
 
-  if (shouldUseInlineDisplay(config)) {
+  if (shouldUseHoverDisplay(config)) {
     const hover = buildHoverMarkdown(lastTranslation);
+    lastHoverEntry = {
+      documentUri: selectionInfo.documentUri,
+      range: selectionInfo.selection,
+      markdown: hover
+    };
     editor.setDecorations(
       resultDecorationType,
-      buildInlineTranslationDecorations(editor, selectionInfo, result.translatedText, config, hover)
+      buildHoverDecorations(selectionInfo, hover)
     );
+    showTranslationHover(editor, selectionInfo);
   }
 
   showStatusBarResult(result);
@@ -604,11 +593,18 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
   const config = getConfig();
   clearEditorDecorations(editor);
 
-  if (shouldUseInlineDisplay(config)) {
+  if (shouldUseHoverDisplay(config)) {
+    const hover = buildErrorHoverMarkdown(message);
+    lastHoverEntry = {
+      documentUri: selectionInfo.documentUri,
+      range: selectionInfo.selection,
+      markdown: hover
+    };
     editor.setDecorations(
       resultDecorationType,
-      buildInlineTranslationDecorations(editor, selectionInfo, message, config)
+      buildHoverDecorations(selectionInfo, hover)
     );
+    showTranslationHover(editor, selectionInfo);
   }
 
   resultStatusBar.text = "$(error) Simple Translate: 翻译失败";
@@ -620,6 +616,7 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
 }
 
 function clearTranslation() {
+  lastHoverEntry = null;
   for (const editor of vscode.window.visibleTextEditors) {
     clearEditorDecorations(editor);
   }
@@ -638,50 +635,34 @@ function clearEditorDecorations(editor) {
   }
 }
 
-function shouldUseInlineDisplay(config) {
-  return config.displayMode === "inline" || config.displayMode === "both";
+function shouldUseHoverDisplay(config) {
+  return config.displayMode === "hover" || config.displayMode === "inline" || config.displayMode === "both";
 }
 
-function buildInlineTranslationDecorations(editor, selectionInfo, text, config, hoverMessage) {
-  const source = normalizeInlineText(text);
-  if (!source) {
-    return [];
-  }
-
-  const contentText = `${INLINE_PREFIX}${source}`;
-  const nextLine = selectionInfo.selection.end.line + 1;
-
-  if (nextLine < editor.document.lineCount) {
-    return [
-      {
-        range: new vscode.Range(nextLine, 0, nextLine, 0),
-        hoverMessage,
-        renderOptions: {
-          before: {
-            contentText
-          }
-        }
-      }
-    ];
-  }
-
-  const endLine = selectionInfo.selection.end.line;
-  const endCharacter = editor.document.lineAt(endLine).text.length;
+function buildHoverDecorations(selectionInfo, hoverMessage) {
   return [
     {
-      range: new vscode.Range(endLine, endCharacter, endLine, endCharacter),
-      hoverMessage,
-      renderOptions: {
-        after: {
-          contentText
-        }
-      }
+      range: selectionInfo.selection,
+      hoverMessage
     }
   ];
 }
 
-function normalizeInlineText(text) {
-  return String(text).replace(/\s+/g, " ").trim();
+function showTranslationHover(editor, selectionInfo) {
+  if (vscode.window.activeTextEditor !== editor) {
+    return;
+  }
+
+  const activePosition = editor.selection.active;
+  if (!selectionInfo.selection.contains(activePosition)) {
+    editor.selection = new vscode.Selection(selectionInfo.selection.end, selectionInfo.selection.end);
+  }
+
+  setTimeout(() => {
+    if (vscode.window.activeTextEditor === editor) {
+      vscode.commands.executeCommand("editor.action.showHover");
+    }
+  }, 25);
 }
 
 function showStatusBarResult(result) {
@@ -1436,6 +1417,14 @@ function buildHoverMarkdown(translation) {
   markdown.appendCodeblock(truncateForMarkdown(translation.sourceText), "");
   markdown.appendMarkdown("\n**译文**\n\n");
   markdown.appendCodeblock(truncateForMarkdown(translation.translatedText), "");
+  return markdown;
+}
+
+function buildErrorHoverMarkdown(message) {
+  const markdown = new vscode.MarkdownString(undefined, true);
+  markdown.appendMarkdown("**Simple Translate**\n\n");
+  markdown.appendMarkdown("翻译失败\n\n");
+  markdown.appendCodeblock(truncateForMarkdown(message), "");
   return markdown;
 }
 
