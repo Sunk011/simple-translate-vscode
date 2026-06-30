@@ -576,7 +576,7 @@ function presentTranslation(editor, selectionInfo, result, options) {
     };
     editor.setDecorations(
       resultDecorationType,
-      buildHoverDecorations(selectionInfo, hover)
+      buildHoverDecorations(selectionInfo)
     );
     showTranslationHover(editor, selectionInfo);
   }
@@ -602,7 +602,7 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
     };
     editor.setDecorations(
       resultDecorationType,
-      buildHoverDecorations(selectionInfo, hover)
+      buildHoverDecorations(selectionInfo)
     );
     showTranslationHover(editor, selectionInfo);
   }
@@ -639,11 +639,10 @@ function shouldUseHoverDisplay(config) {
   return config.displayMode === "hover" || config.displayMode === "inline" || config.displayMode === "both";
 }
 
-function buildHoverDecorations(selectionInfo, hoverMessage) {
+function buildHoverDecorations(selectionInfo) {
   return [
     {
-      range: selectionInfo.selection,
-      hoverMessage
+      range: selectionInfo.selection
     }
   ];
 }

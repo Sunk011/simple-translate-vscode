@@ -2,7 +2,7 @@
   "name": "simple-translate-vscode",
   "displayName": "Simple Translate",
   "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "local",
   "license": "MIT",
   "repository": {
