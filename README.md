@@ -4,10 +4,10 @@ Simple Translate 已从 Chrome 插件改造为 VS Code 插件。它保留原插�
 
 ## 安装
 
-从 GitHub Release 下载 [`simple-translate-vscode-1.0.2.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.2/simple-translate-vscode-1.0.2.vsix) 后安装：
+从 GitHub Release 下载 [`simple-translate-vscode-1.0.3.vsix`](https://github.com/Sunk011/simple-translate-vscode/releases/download/v1.0.3/simple-translate-vscode-1.0.3.vsix) 后安装：
 
 ```powershell
-code --install-extension simple-translate-vscode-1.0.2.vsix
+code --install-extension simple-translate-vscode-1.0.3.vsix
 ```
 
 也可以在 VS Code 扩展面板右上角选择 `Install from VSIX...`，然后选择下载的 `.vsix` 文件。
@@ -15,7 +15,7 @@ code --install-extension simple-translate-vscode-1.0.2.vsix
 ## 功能
 
 - 启动后自动激活，默认 `auto` 模式下选中文本即翻译。
-- 支持用户自定义翻译快捷键，不再固定绑定 `Alt+T`。
+- 默认 `Alt+T` 翻译当前选区，也支持用户在 VS Code Keyboard Shortcuts 中自定义。
 - 编辑器右键菜单支持“翻译选中文本”和“翻译并替换选中文本”。
 - 支持 Google 免费、Bing、DeepL 免费、DeepL API、OpenAI 兼容 AI 翻译、Google Cloud Translation。
 - 自动在主要语言 A/B 之间互译，默认中文/英文。
@@ -44,7 +44,7 @@ code --install-extension simple-translate-vscode-1.0.2.vsix
 
 ## 快捷键自定义
 
-本扩展不再固定占用 `Alt+T`。你可以运行命令：
+本扩展默认绑定 `Alt+T` 翻译当前选区。你可以运行命令：
 
 ```text
 Simple Translate: 配置翻译快捷键
@@ -68,6 +68,8 @@ Simple Translate: 配置翻译快捷键
 ]
 ```
 
+Settings 页面中也提供了 `simpleTranslate.shortcut` 项，默认值为 `alt+t`。由于 VS Code 快捷键必须由 Keyboard Shortcuts 系统管理，修改实际快捷键时仍需要通过上面的命令或 `keybindings.json` 完成绑定。
+
 ### Chrome 插件版快捷键
 
 如果你安装的是上游 Chrome 插件版，快捷键由 Chrome 浏览器统一管理。打开：
@@ -90,7 +92,8 @@ chrome://extensions/shortcuts
   "simpleTranslate.primaryLangB": "en",
   "simpleTranslate.aiBaseUrl": "https://api.openai.com",
   "simpleTranslate.aiModel": "gpt-4o-mini",
-  "simpleTranslate.inlineWrapColumn": 80,
+  "simpleTranslate.shortcut": "alt+t",
+  "simpleTranslate.inlineWrapColumn": 56,
   "simpleTranslate.inlineMaxLines": 4,
   "simpleTranslate.minChars": 2,
   "simpleTranslate.maxChars": 500
@@ -112,8 +115,9 @@ chrome://extensions/shortcuts
 
 内联译文说明：
 
-- VS Code 的装饰文本不会自动跟随编辑器 `wordWrap` 换行，因此扩展会根据 `simpleTranslate.inlineWrapColumn` 手动分段显示。
-- `simpleTranslate.inlineMaxLines` 控制内联最多显示几行，完整译文仍可通过 hover、状态栏 tooltip 或输出面板查看。
+- VS Code 的装饰文本不会自动跟随编辑器 `wordWrap` 换行，因此扩展会把译文显示为独立的可换行块。
+- `simpleTranslate.inlineWrapColumn` 控制译文块最大宽度。
+- `simpleTranslate.inlineMaxLines` 控制译文块最多显示几行，完整译文仍可通过 hover、状态栏 tooltip 或输出面板查看。
 
 ## API Key
 

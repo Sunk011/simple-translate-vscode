@@ -97,9 +97,7 @@ const API_KEY_PROVIDERS = new Set(["deepl", "ai", "google"]);
 const REQUEST_LIMIT_WINDOW_MS = 60 * 1000;
 const REQUEST_LIMIT_COUNT = 20;
 const INPUT_TRANSLATION_MAX_CHARS = 5000;
-const MIN_INLINE_SEGMENT_WIDTH = 16;
-const INLINE_FIRST_PREFIX = "  => ";
-const INLINE_CONTINUATION_PREFIX = "     ";
+const INLINE_PREFIX = "=> ";
 
 const SCRIPT_PATTERNS = [
   { script: "hangul", regex: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g },
@@ -172,6 +170,7 @@ let selectionDebounce;
 let requestSerial = 0;
 let lastSelectionKey = "";
 let lastTranslation = null;
+let lastShortcutSetting = "alt+t";
 let bingAuthToken = null;
 let bingAuthExpiresAt = 0;
 let deeplRequestId = Math.floor(Math.random() * 99999) + 10000;
@@ -192,6 +191,7 @@ function activate(context) {
   resultStatusBar.command = "simpleTranslate.copyTranslation";
 
   rebuildDecorationTypes();
+  lastShortcutSetting = getConfig().shortcut;
 
   context.subscriptions.push(
     outputChannel,
@@ -216,6 +216,9 @@ function activate(context) {
     vscode.window.onDidChangeActiveTextEditor((editor) => updateSelectionUi(editor)),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("simpleTranslate")) {
+        if (event.affectsConfiguration("simpleTranslate.shortcut")) {
+          handleShortcutSettingChanged();
+        }
         rebuildDecorationTypes();
         updateSelectionUi(vscode.window.activeTextEditor);
       }
@@ -237,6 +240,7 @@ function getConfig() {
     provider: config.get("provider", "bing"),
     triggerMode: config.get("triggerMode", "auto"),
     displayMode: config.get("displayMode", "inline"),
+    shortcut: config.get("shortcut", "alt+t"),
     primaryLangA: config.get("primaryLangA", "zh"),
     primaryLangB: config.get("primaryLangB", "en"),
     apiKeys: config.get("apiKeys", {}),
@@ -244,7 +248,7 @@ function getConfig() {
     aiModel: config.get("aiModel", "gpt-4o-mini"),
     fontSize: clampNumber(config.get("fontSize", 15), 10, 28),
     opacity: clampNumber(config.get("opacity", 85), 20, 100),
-    inlineWrapColumn: clampNumber(config.get("inlineWrapColumn", 80), 40, 200),
+    inlineWrapColumn: clampNumber(config.get("inlineWrapColumn", 56), 24, 160),
     inlineMaxLines: clampNumber(config.get("inlineMaxLines", 4), 1, 12),
     chineseRatioThreshold: clampNumber(config.get("chineseRatioThreshold", 0.3), 0.1, 0.9),
     minChars: clampNumber(config.get("minChars", 2), 1, 50),
@@ -261,6 +265,21 @@ function rebuildDecorationTypes() {
   const config = getConfig();
   const opacity = config.opacity / 100;
   const textDecoration = `none; font-size: ${config.fontSize}px; opacity: ${opacity};`;
+  const inlineBlockDecoration = [
+    "none",
+    "display: block",
+    "box-sizing: border-box",
+    `max-width: min(${config.inlineWrapColumn}ch, calc(100vw - 140px))`,
+    `max-height: ${Math.max(1, config.inlineMaxLines) * 1.45}em`,
+    "white-space: normal",
+    "overflow-wrap: anywhere",
+    "word-break: break-word",
+    "overflow: hidden",
+    "line-height: 1.45",
+    `font-size: ${config.fontSize}px`,
+    `opacity: ${opacity}`,
+    "margin: 2px 0"
+  ].join("; ");
 
   loadingDecorationType = vscode.window.createTextEditorDecorationType({
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
@@ -274,11 +293,15 @@ function rebuildDecorationTypes() {
 
   resultDecorationType = vscode.window.createTextEditorDecorationType({
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-    after: {
-      margin: "0 0 0 1rem",
+    before: {
       color: `rgba(80, 160, 255, ${opacity})`,
       fontWeight: "600",
-      textDecoration
+      textDecoration: inlineBlockDecoration
+    },
+    after: {
+      color: `rgba(80, 160, 255, ${opacity})`,
+      fontWeight: "600",
+      textDecoration: inlineBlockDecoration
     }
   });
 }
@@ -584,9 +607,7 @@ function presentTranslationError(editor, selectionInfo, error, options = {}) {
   if (shouldUseInlineDisplay(config)) {
     editor.setDecorations(
       resultDecorationType,
-      buildInlineTranslationDecorations(editor, selectionInfo, message, config, undefined, {
-        maxLines: Math.min(2, config.inlineMaxLines)
-      })
+      buildInlineTranslationDecorations(editor, selectionInfo, message, config)
     );
   }
 
@@ -621,158 +642,46 @@ function shouldUseInlineDisplay(config) {
   return config.displayMode === "inline" || config.displayMode === "both";
 }
 
-function buildInlineTranslationDecorations(editor, selectionInfo, text, config, hoverMessage, options = {}) {
+function buildInlineTranslationDecorations(editor, selectionInfo, text, config, hoverMessage) {
   const source = normalizeInlineText(text);
   if (!source) {
     return [];
   }
 
-  const maxLines = Math.max(1, Math.min(options.maxLines || config.inlineMaxLines, config.inlineMaxLines));
-  const decorations = [];
-  let rest = source;
-  let line = selectionInfo.selection.end.line;
-  let renderedLines = 0;
+  const contentText = `${INLINE_PREFIX}${source}`;
+  const nextLine = selectionInfo.selection.end.line + 1;
 
-  while (rest && line < editor.document.lineCount && renderedLines < maxLines) {
-    const isFirstLine = renderedLines === 0;
-    const prefix = isFirstLine ? INLINE_FIRST_PREFIX : INLINE_CONTINUATION_PREFIX;
-    const lineText = editor.document.lineAt(line).text;
-    const anchorCharacter = isFirstLine ? selectionInfo.selection.end.character : lineText.length;
-    const anchorText = lineText.slice(0, anchorCharacter);
-    const usedWidth = estimateDisplayWidth(anchorText) + estimateDisplayWidth(prefix);
-    const availableWidth = Math.max(
-      MIN_INLINE_SEGMENT_WIDTH,
-      Math.min(config.inlineWrapColumn - estimateDisplayWidth(prefix), config.inlineWrapColumn - usedWidth)
-    );
-    const isLastRenderableLine =
-      renderedLines === maxLines - 1 || line === editor.document.lineCount - 1;
-    const part = takeInlineSegment(rest, availableWidth, isLastRenderableLine);
+  if (nextLine < editor.document.lineCount) {
+    return [
+      {
+        range: new vscode.Range(nextLine, 0, nextLine, 0),
+        hoverMessage,
+        renderOptions: {
+          before: {
+            contentText
+          }
+        }
+      }
+    ];
+  }
 
-    decorations.push({
-      range: new vscode.Range(line, anchorCharacter, line, anchorCharacter),
+  const endLine = selectionInfo.selection.end.line;
+  const endCharacter = editor.document.lineAt(endLine).text.length;
+  return [
+    {
+      range: new vscode.Range(endLine, endCharacter, endLine, endCharacter),
       hoverMessage,
       renderOptions: {
         after: {
-          contentText: `${prefix}${part.segment}`
+          contentText
         }
       }
-    });
-
-    rest = part.rest;
-    line += 1;
-    renderedLines += 1;
-  }
-
-  return decorations;
+    }
+  ];
 }
 
 function normalizeInlineText(text) {
   return String(text).replace(/\s+/g, " ").trim();
-}
-
-function takeInlineSegment(text, maxWidth, isLastSegment) {
-  if (estimateDisplayWidth(text) <= maxWidth) {
-    return { segment: text, rest: "" };
-  }
-
-  if (isLastSegment) {
-    return {
-      segment: trimToDisplayWidth(text, Math.max(1, maxWidth - 3)).trimEnd() + "...",
-      rest: ""
-    };
-  }
-
-  const breakIndex = findInlineBreakIndex(text, maxWidth);
-  const segment = text.slice(0, breakIndex).trimEnd();
-  const rest = text.slice(breakIndex).trimStart();
-
-  if (segment) {
-    return { segment, rest };
-  }
-
-  const fallback = trimToDisplayWidth(text, maxWidth);
-  return {
-    segment: fallback,
-    rest: text.slice(fallback.length).trimStart()
-  };
-}
-
-function findInlineBreakIndex(text, maxWidth) {
-  let width = 0;
-  let index = 0;
-  let lastGoodBreak = -1;
-  const minBreakWidth = Math.max(1, Math.floor(maxWidth * 0.45));
-
-  for (const char of text) {
-    const nextIndex = index + char.length;
-    const nextWidth = width + getDisplayWidth(char);
-
-    if (isInlineBreakChar(char) && nextWidth >= minBreakWidth) {
-      lastGoodBreak = nextIndex;
-    }
-
-    if (nextWidth > maxWidth) {
-      if (lastGoodBreak > 0) {
-        return lastGoodBreak;
-      }
-      return index > 0 ? index : nextIndex;
-    }
-
-    width = nextWidth;
-    index = nextIndex;
-  }
-
-  return text.length;
-}
-
-function trimToDisplayWidth(text, maxWidth) {
-  let width = 0;
-  let result = "";
-
-  for (const char of text) {
-    const charWidth = getDisplayWidth(char);
-    if (width + charWidth > maxWidth) {
-      break;
-    }
-    result += char;
-    width += charWidth;
-  }
-
-  return result;
-}
-
-function estimateDisplayWidth(text) {
-  let width = 0;
-  for (const char of String(text)) {
-    width += getDisplayWidth(char);
-  }
-  return width;
-}
-
-function getDisplayWidth(char) {
-  if (char === "\t") {
-    return 4;
-  }
-
-  const codePoint = char.codePointAt(0) || 0;
-  if (
-    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
-    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
-    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
-    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
-    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
-    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
-    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
-    (codePoint >= 0xffe0 && codePoint <= 0xffe6)
-  ) {
-    return 2;
-  }
-
-  return 1;
-}
-
-function isInlineBreakChar(char) {
-  return /\s/.test(char) || /[,.!?;:，。！？；：、]/.test(char);
 }
 
 function showStatusBarResult(result) {
@@ -979,13 +888,34 @@ async function configureShortcut() {
     return;
   }
 
-  await vscode.commands.executeCommand(
-    "workbench.action.openGlobalKeybindings",
-    `@command:${picked.commandId}`
-  );
+  await openKeyboardShortcutForCommand(picked.commandId);
 
   vscode.window.showInformationMessage(
     `已打开快捷键设置，请为“${picked.label}”绑定你想使用的按键。`
+  );
+}
+
+async function handleShortcutSettingChanged() {
+  const shortcut = getConfig().shortcut;
+  if (shortcut === lastShortcutSetting) {
+    return;
+  }
+
+  lastShortcutSetting = shortcut;
+  const action = await vscode.window.showInformationMessage(
+    `已记录快捷键偏好 ${shortcut}。VS Code 需要在 Keyboard Shortcuts 中完成绑定后才会生效。`,
+    "配置快捷键"
+  );
+
+  if (action === "配置快捷键") {
+    await openKeyboardShortcutForCommand("simpleTranslate.translateSelection");
+  }
+}
+
+function openKeyboardShortcutForCommand(commandId) {
+  return vscode.commands.executeCommand(
+    "workbench.action.openGlobalKeybindings",
+    `@command:${commandId}`
   );
 }
 

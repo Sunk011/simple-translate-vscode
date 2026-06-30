@@ -2,7 +2,7 @@
   "name": "simple-translate-vscode",
   "displayName": "Simple Translate",
   "description": "划词翻译 VS Code 版：支持选区自动翻译、快捷键、右键菜单、多翻译源和 API Key 配置。",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "local",
   "license": "MIT",
   "repository": {
@@ -102,6 +102,14 @@
         "category": "Simple Translate"
       }
     ],
+    "keybindings": [
+      {
+        "command": "simpleTranslate.translateSelection",
+        "key": "alt+t",
+        "mac": "alt+t",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
     "menus": {
       "editor/context": [
         {
@@ -123,6 +131,11 @@
           "type": "boolean",
           "default": true,
           "description": "是否启用划词翻译。"
+        },
+        "simpleTranslate.shortcut": {
+          "type": "string",
+          "default": "alt+t",
+          "markdownDescription": "翻译选中文本的默认快捷键是 `Alt+T`。如需修改，请运行命令 `Simple Translate: 配置翻译快捷键`，或在 VS Code Keyboard Shortcuts 中搜索 `simpleTranslate.translateSelection` 后重新绑定。"
         },
         "simpleTranslate.provider": {
           "type": "string",
@@ -251,10 +264,10 @@
         },
         "simpleTranslate.inlineWrapColumn": {
           "type": "number",
-          "default": 80,
-          "minimum": 40,
-          "maximum": 200,
-          "description": "内联译文模拟换行的列宽。VS Code 装饰文本不会自动跟随编辑器 word wrap，因此扩展会按这个列宽手动分段显示。"
+          "default": 56,
+          "minimum": 24,
+          "maximum": 160,
+          "description": "内联译文块的最大宽度，单位近似为字符宽度。"
         },
         "simpleTranslate.inlineMaxLines": {
           "type": "number",
